@@ -31,6 +31,13 @@ Install the package globally using uv:
 uv tool install .
 ```
 
+To update the global installation after making changes:
+
+```bash
+find . -type d -name __pycache__ -exec rm -rf {} +
+uv tool install --force --reinstall .
+```
+
 Or with pip:
 
 ```bash

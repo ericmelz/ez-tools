@@ -20,7 +20,7 @@ def main(ctx):
 @click.option("--name", default="World", help="Name to greet")
 def hello(name):
     """Say hello - a simple hello world command."""
-    click.echo(f"Hello, {name}!")
+    click.echo(f"Helloxyz, {name}!")
     click.echo("Welcome to EZ Infrastructure Tools!")
 
 
