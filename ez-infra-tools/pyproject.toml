@@ -1,0 +1,19 @@
+[project]
+name = "ez-infra-tools"
+version = "0.1.0"
+description = "Infrastructure tools for secrets management, k8s, helm, and nginx"
+readme = "README.md"
+authors = [
+    { name = "ericmelz", email = "eric@emelz.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "click>=8.1.7",
+]
+
+[project.scripts]
+ez = "ez_infra_tools.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
