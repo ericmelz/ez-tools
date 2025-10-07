@@ -130,3 +130,8 @@ dmypy.json
 
 # uv
 uv.lock
+
+# Secrets (SOPS/Age)
+secrets/age-key.txt
+secrets/*.yaml.tmp
+secrets/*.json.tmp

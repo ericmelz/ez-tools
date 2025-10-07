@@ -1,8 +1,11 @@
 """CLI entry point for EZ Infrastructure Tools."""
 
+import sys
+
 import click
 
 from ez_infra_tools import __version__
+from ez_infra_tools.secrets import sops_age
 
 
 @click.group()
@@ -30,10 +33,34 @@ def secrets():
     pass
 
 
-@secrets.command(name="info")
-def secrets_info():
-    """Show secrets management info."""
-    click.echo("Secrets management with SOPS and Age (coming soon)")
+@secrets.command(name="setup")
+def secrets_setup():
+    """Set up secrets management (generate age key, create config)."""
+    if not sops_age.setup_secrets():
+        sys.exit(1)
+
+
+@secrets.command(name="edit")
+def secrets_edit():
+    """Edit encrypted secrets file."""
+    if not sops_age.edit_secrets():
+        sys.exit(1)
+
+
+@secrets.command(name="decrypt")
+@click.option("--format", type=click.Choice(["env", "yaml", "json"]), default="env", help="Output format")
+@click.option("--key", help="Extract specific key only")
+def secrets_decrypt(format, key):
+    """Decrypt and display secrets."""
+    if not sops_age.decrypt_secrets(output_format=format, key=key):
+        sys.exit(1)
+
+
+@secrets.command(name="check")
+def secrets_check():
+    """Check if sops and age are installed."""
+    if not sops_age.check_dependencies():
+        sys.exit(1)
 
 
 @main.group()
