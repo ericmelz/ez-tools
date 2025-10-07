@@ -127,4 +127,4 @@ Add new commands to the appropriate group or create new groups as needed.
 
 ## License
 
-TBD
+MIT License - see [LICENSE](../LICENSE) file for details
