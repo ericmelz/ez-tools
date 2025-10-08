@@ -69,10 +69,55 @@ def k8s():
     pass
 
 
-@k8s.command(name="info")
-def k8s_info():
-    """Show K8s management info."""
-    click.echo("Kubernetes context management (coming soon)")
+@k8s.command(name="create-test-pod")
+@click.option("--namespace", default="default", help="Kubernetes namespace (default: default)")
+def k8s_create_test_pod(namespace):
+    """Create a test pod in the current Kubernetes context."""
+    import subprocess
+    import time
+
+    pod_name = f"test-pod-{int(time.time())}"
+
+    pod_yaml = f"""apiVersion: v1
+kind: Pod
+metadata:
+  name: {pod_name}
+  namespace: {namespace}
+spec:
+  containers:
+  - name: ubuntu
+    image: ubuntu:24.04
+    command: ["/bin/bash", "-c", "--"]
+    args: ["while true; do sleep 30; done;"]
+"""
+
+    click.echo(f"Creating test pod '{pod_name}' in namespace '{namespace}'...")
+
+    try:
+        # Create the pod using kubectl
+        result = subprocess.run(
+            ["kubectl", "apply", "-f", "-"],
+            input=pod_yaml,
+            text=True,
+            capture_output=True,
+            check=True
+        )
+
+        click.echo(result.stdout)
+        click.secho(f"✓ Test pod created successfully!", fg="green")
+        click.echo(f"\nTo exec into the pod:")
+        click.echo(f"  kubectl exec -it {pod_name} -n {namespace} -- /bin/bash")
+        click.echo(f"\nTo delete the pod:")
+        click.echo(f"  kubectl delete pod {pod_name} -n {namespace}")
+
+    except subprocess.CalledProcessError as e:
+        click.secho(f"✗ Failed to create test pod", fg="red", err=True)
+        if e.stderr:
+            click.echo(e.stderr, err=True)
+        sys.exit(1)
+    except FileNotFoundError:
+        click.secho("✗ kubectl not found. Please install kubectl.", fg="red", err=True)
+        sys.exit(1)
 
 
 @main.group()
