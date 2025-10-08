@@ -84,6 +84,11 @@ metadata:
   name: {pod_name}
   namespace: {namespace}
 spec:
+  dnsPolicy: ClusterFirst
+  dnsConfig:
+    options:
+      - name: ndots
+        value: "1"
   containers:
   - name: ubuntu
     image: ubuntu:24.04
@@ -117,6 +122,75 @@ spec:
         sys.exit(1)
     except FileNotFoundError:
         click.secho("✗ kubectl not found. Please install kubectl.", fg="red", err=True)
+        sys.exit(1)
+
+
+@k8s.command(name="delete-test-pod")
+@click.option("--namespace", default="default", help="Kubernetes namespace (default: default)")
+def k8s_delete_test_pod(namespace):
+    """Delete test pod(s) from the specified namespace."""
+    import subprocess
+    import json
+
+    click.echo(f"Searching for test pods in namespace '{namespace}'...")
+
+    try:
+        # Get all pods in the namespace that start with "test-pod-"
+        result = subprocess.run(
+            ["kubectl", "get", "pods", "-n", namespace, "-o", "json"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        pods_data = json.loads(result.stdout)
+        test_pods = [
+            pod["metadata"]["name"]
+            for pod in pods_data.get("items", [])
+            if pod["metadata"]["name"].startswith("test-pod-")
+        ]
+
+        if len(test_pods) == 0:
+            click.secho(f"✓ No test pods found in namespace '{namespace}'", fg="green")
+            return
+
+        elif len(test_pods) == 1:
+            pod_name = test_pods[0]
+            click.echo(f"Found test pod: {pod_name}")
+            click.echo(f"Deleting...")
+
+            delete_result = subprocess.run(
+                ["kubectl", "delete", "pod", pod_name, "-n", namespace],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+
+            click.echo(delete_result.stdout)
+            click.secho(f"✓ Test pod deleted successfully!", fg="green")
+
+        else:
+            click.secho(f"Found {len(test_pods)} test pods in namespace '{namespace}':", fg="yellow")
+            for pod in test_pods:
+                click.echo(f"  - {pod}")
+
+            click.echo(f"\nTo delete a specific pod, run:")
+            for pod in test_pods:
+                click.echo(f"  kubectl delete pod {pod} -n {namespace}")
+
+            click.echo(f"\nTo delete all test pods:")
+            click.echo(f"  kubectl delete pods -n {namespace} " + " ".join(test_pods))
+
+    except subprocess.CalledProcessError as e:
+        click.secho(f"✗ Failed to query or delete pods", fg="red", err=True)
+        if e.stderr:
+            click.echo(e.stderr, err=True)
+        sys.exit(1)
+    except FileNotFoundError:
+        click.secho("✗ kubectl not found. Please install kubectl.", fg="red", err=True)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        click.secho(f"✗ Failed to parse kubectl output: {e}", fg="red", err=True)
         sys.exit(1)
 
 
