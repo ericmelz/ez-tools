@@ -34,25 +34,28 @@ def secrets():
 
 
 @secrets.command(name="setup")
-def secrets_setup():
+@click.option("--project", help="Project subdirectory (creates if doesn't exist)")
+def secrets_setup(project):
     """Set up secrets management (generate age key, create config)."""
-    if not sops_age.setup_secrets():
+    if not sops_age.setup_secrets(project=project):
         sys.exit(1)
 
 
 @secrets.command(name="edit")
-def secrets_edit():
+@click.option("--project", help="Project subdirectory")
+def secrets_edit(project):
     """Edit encrypted secrets file."""
-    if not sops_age.edit_secrets():
+    if not sops_age.edit_secrets(project=project):
         sys.exit(1)
 
 
 @secrets.command(name="decrypt")
 @click.option("--format", type=click.Choice(["env", "yaml", "json"]), default="env", help="Output format")
 @click.option("--key", help="Extract specific key only")
-def secrets_decrypt(format, key):
+@click.option("--project", help="Project subdirectory")
+def secrets_decrypt(format, key, project):
     """Decrypt and display secrets."""
-    if not sops_age.decrypt_secrets(output_format=format, key=key):
+    if not sops_age.decrypt_secrets(output_format=format, key=key, project=project):
         sys.exit(1)
 
 

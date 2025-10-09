@@ -9,25 +9,46 @@ from typing import Optional
 import click
 
 
-def get_project_root() -> Path:
-    """Get the project root directory."""
-    # When installed, look in current working directory
-    return Path.cwd()
+def get_project_root(project: Optional[str] = None) -> Path:
+    """Get the project root directory.
+
+    Args:
+        project: Optional subdirectory name relative to current working directory
+
+    Returns:
+        Path to project root (either cwd or cwd/project)
+    """
+    base = Path.cwd()
+    if project:
+        return base / project
+    return base
 
 
-def get_secrets_dir() -> Path:
-    """Get the secrets directory path."""
-    return get_project_root() / "secrets"
+def get_secrets_dir(project: Optional[str] = None) -> Path:
+    """Get the secrets directory path.
+
+    Args:
+        project: Optional subdirectory name
+    """
+    return get_project_root(project) / "secrets"
 
 
-def get_age_key_path() -> Path:
-    """Get the age key file path."""
-    return get_secrets_dir() / "age-key.txt"
+def get_age_key_path(project: Optional[str] = None) -> Path:
+    """Get the age key file path.
+
+    Args:
+        project: Optional subdirectory name
+    """
+    return get_secrets_dir(project) / "age-key.txt"
 
 
-def get_secrets_path() -> Path:
-    """Get the secrets YAML file path."""
-    return get_secrets_dir() / "secrets.yaml"
+def get_secrets_path(project: Optional[str] = None) -> Path:
+    """Get the secrets YAML file path.
+
+    Args:
+        project: Optional subdirectory name
+    """
+    return get_secrets_dir(project) / "secrets.yaml"
 
 
 def info(message: str) -> None:
@@ -72,10 +93,14 @@ def check_dependencies() -> bool:
     return True
 
 
-def generate_age_key() -> Optional[str]:
-    """Generate an age key if it doesn't exist. Returns the public key."""
-    age_key_file = get_age_key_path()
-    secrets_dir = get_secrets_dir()
+def generate_age_key(project: Optional[str] = None) -> Optional[str]:
+    """Generate an age key if it doesn't exist. Returns the public key.
+
+    Args:
+        project: Optional subdirectory name
+    """
+    age_key_file = get_age_key_path(project)
+    secrets_dir = get_secrets_dir(project)
 
     if age_key_file.exists():
         info(f"Age key already exists: {age_key_file}")
@@ -130,9 +155,14 @@ def generate_age_key() -> Optional[str]:
         return None
 
 
-def create_sops_config(public_key: str) -> bool:
-    """Create .sops.yaml configuration file."""
-    sops_config_path = get_project_root() / ".sops.yaml"
+def create_sops_config(public_key: str, project: Optional[str] = None) -> bool:
+    """Create .sops.yaml configuration file.
+
+    Args:
+        public_key: Age public key
+        project: Optional subdirectory name
+    """
+    sops_config_path = get_project_root(project) / ".sops.yaml"
 
     if sops_config_path.exists():
         info(f".sops.yaml already exists: {sops_config_path}")
@@ -155,10 +185,14 @@ creation_rules:
         return False
 
 
-def create_initial_secrets_file() -> bool:
-    """Create an initial encrypted secrets file."""
-    secrets_file = get_secrets_path()
-    age_key_file = get_age_key_path()
+def create_initial_secrets_file(project: Optional[str] = None) -> bool:
+    """Create an initial encrypted secrets file.
+
+    Args:
+        project: Optional subdirectory name
+    """
+    secrets_file = get_secrets_path(project)
+    age_key_file = get_age_key_path(project)
 
     if secrets_file.exists():
         info(f"Secrets file already exists: {secrets_file}")
@@ -177,7 +211,7 @@ api:
   secret: ""
 """
 
-    secrets_dir = get_secrets_dir()
+    secrets_dir = get_secrets_dir(project)
     secrets_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -189,8 +223,11 @@ api:
         env = os.environ.copy()
         env['SOPS_AGE_KEY_FILE'] = str(age_key_file)
 
+        sops_config = get_project_root(project) / ".sops.yaml"
+        cmd = ["sops", "--config", str(sops_config), "--encrypt", "--in-place", str(secrets_file)]
+
         subprocess.run(
-            ["sops", "--encrypt", "--in-place", str(secrets_file)],
+            cmd,
             env=env,
             check=True,
             capture_output=True
@@ -212,38 +249,54 @@ api:
         return False
 
 
-def setup_secrets() -> bool:
-    """Complete setup process for secrets management."""
+def setup_secrets(project: Optional[str] = None) -> bool:
+    """Complete setup process for secrets management.
+
+    Args:
+        project: Optional subdirectory name
+    """
     if not check_dependencies():
         return False
 
-    public_key = generate_age_key()
+    # Create project directory if it doesn't exist
+    if project:
+        project_root = get_project_root(project)
+        project_root.mkdir(parents=True, exist_ok=True)
+        info(f"Using project directory: {project_root}")
+
+    public_key = generate_age_key(project)
     if not public_key:
         error("Failed to generate or read age key")
         return False
 
-    if not create_sops_config(public_key):
+    if not create_sops_config(public_key, project):
         return False
 
-    if not create_initial_secrets_file():
+    if not create_initial_secrets_file(project):
         return False
 
     info("\nSecrets setup complete!")
-    info(f"Age key: {get_age_key_path()}")
-    info(f"Secrets file: {get_secrets_path()}")
-    info(f"SOPS config: {get_project_root() / '.sops.yaml'}")
+    info(f"Age key: {get_age_key_path(project)}")
+    info(f"Secrets file: {get_secrets_path(project)}")
+    info(f"SOPS config: {get_project_root(project) / '.sops.yaml'}")
+
+    project_suffix = f" --project {project}" if project else ""
     click.echo("\nNext steps:", err=True)
     click.echo("  1. Backup your age key to a secure location", err=True)
-    click.echo("  2. Edit secrets with: ez secrets edit", err=True)
-    click.echo("  3. Decrypt secrets with: ez secrets decrypt", err=True)
+    click.echo(f"  2. Edit secrets with: ez secrets edit{project_suffix}", err=True)
+    click.echo(f"  3. Decrypt secrets with: ez secrets decrypt{project_suffix}", err=True)
 
     return True
 
 
-def edit_secrets() -> bool:
-    """Edit encrypted secrets file using SOPS."""
-    secrets_file = get_secrets_path()
-    age_key_file = get_age_key_path()
+def edit_secrets(project: Optional[str] = None) -> bool:
+    """Edit encrypted secrets file using SOPS.
+
+    Args:
+        project: Optional subdirectory name
+    """
+    secrets_file = get_secrets_path(project)
+    age_key_file = get_age_key_path(project)
 
     if not secrets_file.exists():
         error(f"Encrypted secrets file not found: {secrets_file}")
@@ -261,9 +314,11 @@ def edit_secrets() -> bool:
     env = os.environ.copy()
     env['SOPS_AGE_KEY_FILE'] = str(age_key_file)
 
+    sops_config = get_project_root(project) / ".sops.yaml"
+
     try:
         subprocess.run(
-            ["sops", str(secrets_file)],
+            ["sops", "--config", str(sops_config), str(secrets_file)],
             env=env,
             check=True
         )
@@ -274,10 +329,16 @@ def edit_secrets() -> bool:
         return False
 
 
-def decrypt_secrets(output_format: str = "env", key: Optional[str] = None) -> bool:
-    """Decrypt secrets and output in various formats."""
-    secrets_file = get_secrets_path()
-    age_key_file = get_age_key_path()
+def decrypt_secrets(output_format: str = "env", key: Optional[str] = None, project: Optional[str] = None) -> bool:
+    """Decrypt secrets and output in various formats.
+
+    Args:
+        output_format: Output format (env, yaml, json)
+        key: Optional specific key to extract
+        project: Optional subdirectory name
+    """
+    secrets_file = get_secrets_path(project)
+    age_key_file = get_age_key_path(project)
 
     if not secrets_file.exists():
         error(f"Encrypted secrets file not found: {secrets_file}")
@@ -292,9 +353,11 @@ def decrypt_secrets(output_format: str = "env", key: Optional[str] = None) -> bo
     env = os.environ.copy()
     env['SOPS_AGE_KEY_FILE'] = str(age_key_file)
 
+    sops_config = get_project_root(project) / ".sops.yaml"
+
     try:
         result = subprocess.run(
-            ["sops", "--decrypt", str(secrets_file)],
+            ["sops", "--config", str(sops_config), "--decrypt", str(secrets_file)],
             env=env,
             capture_output=True,
             text=True,
@@ -308,7 +371,7 @@ def decrypt_secrets(output_format: str = "env", key: Optional[str] = None) -> bo
         elif output_format == "json":
             # Convert YAML to JSON using sops
             result = subprocess.run(
-                ["sops", "--decrypt", "--output-type", "json", str(secrets_file)],
+                ["sops", "--config", str(sops_config), "--decrypt", "--output-type", "json", str(secrets_file)],
                 env=env,
                 capture_output=True,
                 text=True,
