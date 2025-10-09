@@ -94,12 +94,28 @@ def k8s_create_test_pod(namespace):
     pod_name = f"test-pod-{int(time.time())}"
 
     pod_yaml = f"""apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-notes-data-root
+  namespace: {namespace}
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes: [ReadWriteMany]
+  storageClassName: ""                   # static
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    server: 192.168.2.6
+    path: /volume1/notes_data/Joplin
+
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: notes-data-pvc
   namespace: {namespace}
 spec:
-  storageClassName: notes-data-nfs
+  storageClassName: ""   # empty to match the static PV
   accessModes:
     - ReadWriteMany
   resources:
