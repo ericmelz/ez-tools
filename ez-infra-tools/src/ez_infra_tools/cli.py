@@ -94,6 +94,20 @@ def k8s_create_test_pod(namespace):
     pod_name = f"test-pod-{int(time.time())}"
 
     pod_yaml = f"""apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: notes-data-pvc
+  namespace: {namespace}
+spec:
+  storageClassName: nfs
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+
+---
+apiVersion: v1
 kind: Pod
 metadata:
   name: {pod_name}
@@ -109,6 +123,10 @@ spec:
     image: ubuntu:24.04
     command: ["/bin/bash", "-c", "--"]
     args: ["while true; do sleep 30; done;"]
+  volumes:
+    - name: notes-data
+      persistentVolumeClaim:
+        claimName: notes-data-pvc
 """
 
     click.echo(f"Creating test pod '{pod_name}' in namespace '{namespace}'...")
@@ -221,6 +239,108 @@ def k8s_delete_test_pod(namespace):
         sys.exit(1)
     except json.JSONDecodeError as e:
         click.secho(f"✗ Failed to parse kubectl output: {e}", fg="red", err=True)
+        sys.exit(1)
+
+
+@k8s.command(name="install-nfs-provisioner")
+@click.option("--storage-class-name", required=True, help="Storage class name for NFS provisioner")
+@click.option("--nfs-server", required=True, help="NFS server IP or hostname")
+@click.option("--nfs-path", required=True, help="NFS export path")
+@click.option("--default-class", is_flag=True, default=False, help="Set as default storage class")
+@click.option("--namespace", default="kube-system", help="Namespace to install provisioner (default: kube-system)")
+def k8s_install_nfs_provisioner(storage_class_name, nfs_server, nfs_path, default_class, namespace):
+    """Install NFS subdir external provisioner using Helm."""
+    import subprocess
+
+    click.echo("Installing NFS subdir external provisioner...")
+    click.echo(f"  Storage Class: {storage_class_name}")
+    click.echo(f"  NFS Server: {nfs_server}")
+    click.echo(f"  NFS Path: {nfs_path}")
+    click.echo(f"  Namespace: {namespace}")
+    click.echo(f"  Default Class: {default_class}")
+    click.echo()
+
+    try:
+        # Check if helm is installed
+        subprocess.run(
+            ["helm", "version", "--short"],
+            capture_output=True,
+            check=True
+        )
+    except FileNotFoundError:
+        click.secho("✗ helm not found. Please install helm.", fg="red", err=True)
+        click.echo("\nInstall with: brew install helm", err=True)
+        sys.exit(1)
+    except subprocess.CalledProcessError:
+        click.secho("✗ Failed to check helm version.", fg="red", err=True)
+        sys.exit(1)
+
+    try:
+        # Add helm repo
+        click.echo("Adding helm repository...")
+        subprocess.run(
+            ["helm", "repo", "add", "nfs-subdir-external-provisioner",
+             "https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner"],
+            check=True,
+            capture_output=True
+        )
+
+        # Update helm repos
+        click.echo("Updating helm repositories...")
+        subprocess.run(
+            ["helm", "repo", "update"],
+            check=True,
+            capture_output=True
+        )
+
+        # Install/upgrade the provisioner
+        click.echo("Installing NFS provisioner...")
+        cmd = [
+            "helm", "upgrade", "--install", "nfs-provisioner",
+            "nfs-subdir-external-provisioner/nfs-subdir-external-provisioner",
+            "--namespace", namespace,
+            "--create-namespace",
+            "--set", f"nfs.server={nfs_server}",
+            "--set", f"nfs.path={nfs_path}",
+            "--set", f"storageClass.name={storage_class_name}",
+            "--set", f"storageClass.defaultClass={str(default_class).lower()}",
+        ]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        click.echo(result.stdout)
+        click.secho("\n✓ NFS provisioner installed successfully!", fg="green")
+
+        click.echo("\nTo verify the installation:")
+        click.echo(f"  kubectl get pods -n {namespace} -l app=nfs-subdir-external-provisioner")
+        click.echo(f"  kubectl get storageclass {storage_class_name}")
+
+        click.echo("\nTo test the provisioner, create a PVC:")
+        click.echo(f"""
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pvc
+spec:
+  storageClassName: {storage_class_name}
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+""")
+
+    except subprocess.CalledProcessError as e:
+        click.secho("✗ Failed to install NFS provisioner", fg="red", err=True)
+        if e.stderr:
+            click.echo(e.stderr, err=True)
+        if e.stdout:
+            click.echo(e.stdout, err=True)
         sys.exit(1)
 
 
