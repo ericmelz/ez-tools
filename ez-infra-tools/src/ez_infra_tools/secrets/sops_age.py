@@ -416,3 +416,77 @@ def decrypt_secrets(output_format: str = "env", key: Optional[str] = None, proje
     except Exception as e:
         error(f"Failed to process secrets: {e}")
         return False
+
+
+def make_temp_secrets_yaml(project: Optional[str] = None) -> bool:
+    """Decrypt secrets and write to temporary YAML file with 'secrets:' wrapper.
+
+    Args:
+        project: Optional subdirectory name
+
+    Returns:
+        True if successful, False otherwise
+    """
+    secrets_file = get_secrets_path(project)
+    age_key_file = get_age_key_path(project)
+
+    if not secrets_file.exists():
+        error(f"Encrypted secrets file not found: {secrets_file}")
+        click.echo("Run 'ez secrets setup' first", err=True)
+        return False
+
+    if not age_key_file.exists():
+        error(f"Age key file not found: {age_key_file}")
+        click.echo("Run 'ez secrets setup' first", err=True)
+        return False
+
+    # Determine output file path
+    if project:
+        output_file = Path(f"/tmp/{project}-secret-values.yaml")
+    else:
+        output_file = Path("/tmp/secret-values.yaml")
+
+    env = os.environ.copy()
+    env['SOPS_AGE_KEY_FILE'] = str(age_key_file)
+
+    sops_config = get_project_root(project) / ".sops.yaml"
+
+    try:
+        # Decrypt secrets
+        result = subprocess.run(
+            ["sops", "--config", str(sops_config), "--decrypt", str(secrets_file)],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        decrypted_content = result.stdout
+
+        # Parse YAML to ensure it's valid
+        import yaml
+        data = yaml.safe_load(decrypted_content)
+
+        # Write wrapped content to temp file
+        with open(output_file, 'w') as f:
+            f.write("secrets:\n")
+            # Dump the data and indent each line by 4 spaces
+            yaml_content = yaml.dump(data, default_flow_style=False, sort_keys=False)
+            for line in yaml_content.splitlines():
+                f.write(f"    {line}\n")
+
+        info(f"Temporary secrets file created: {output_file}")
+        click.echo(f"\nFile location: {output_file}")
+        click.echo("\nNote: Remember to delete this file when done:")
+        click.echo(f"  rm {output_file}")
+
+        return True
+
+    except subprocess.CalledProcessError as e:
+        error(f"Failed to decrypt secrets: {e}")
+        if e.stderr:
+            click.echo(e.stderr, err=True)
+        return False
+    except Exception as e:
+        error(f"Failed to create temp secrets file: {e}")
+        return False

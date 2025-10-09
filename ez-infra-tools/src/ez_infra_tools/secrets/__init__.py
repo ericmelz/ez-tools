@@ -6,6 +6,7 @@ from .sops_age import (
     setup_secrets,
     edit_secrets,
     decrypt_secrets,
+    make_temp_secrets_yaml,
     get_age_key_path,
     get_secrets_path,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "setup_secrets",
     "edit_secrets",
     "decrypt_secrets",
+    "make_temp_secrets_yaml",
     "get_age_key_path",
     "get_secrets_path",
 ]

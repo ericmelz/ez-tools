@@ -66,6 +66,14 @@ def secrets_check():
         sys.exit(1)
 
 
+@secrets.command(name="make-temp-secrets-yaml")
+@click.option("--project", help="Project subdirectory")
+def secrets_make_temp_yaml(project):
+    """Decrypt secrets and write to temporary YAML file with 'secrets:' wrapper."""
+    if not sops_age.make_temp_secrets_yaml(project=project):
+        sys.exit(1)
+
+
 @main.group()
 def k8s():
     """Manage Kubernetes contexts."""
