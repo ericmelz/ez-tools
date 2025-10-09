@@ -70,11 +70,26 @@ def k8s():
 
 
 @k8s.command(name="create-test-pod")
-@click.option("--namespace", default="default", help="Kubernetes namespace (default: default)")
+@click.option("--namespace", default=None, help="Kubernetes namespace (default: current context namespace)")
 def k8s_create_test_pod(namespace):
     """Create a test pod in the current Kubernetes context."""
     import subprocess
     import time
+
+    # Get current namespace from kubeconfig if not specified
+    if namespace is None:
+        try:
+            result = subprocess.run(
+                ["kubectl", "config", "view", "--minify", "--output", "jsonpath={..namespace}"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            namespace = result.stdout.strip()
+            if not namespace:
+                namespace = "default"
+        except subprocess.CalledProcessError:
+            namespace = "default"
 
     pod_name = f"test-pod-{int(time.time())}"
 
@@ -126,11 +141,26 @@ spec:
 
 
 @k8s.command(name="delete-test-pod")
-@click.option("--namespace", default="default", help="Kubernetes namespace (default: default)")
+@click.option("--namespace", default=None, help="Kubernetes namespace (default: current context namespace)")
 def k8s_delete_test_pod(namespace):
     """Delete test pod(s) from the specified namespace."""
     import subprocess
     import json
+
+    # Get current namespace from kubeconfig if not specified
+    if namespace is None:
+        try:
+            result = subprocess.run(
+                ["kubectl", "config", "view", "--minify", "--output", "jsonpath={..namespace}"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            namespace = result.stdout.strip()
+            if not namespace:
+                namespace = "default"
+        except subprocess.CalledProcessError:
+            namespace = "default"
 
     click.echo(f"Searching for test pods in namespace '{namespace}'...")
 
