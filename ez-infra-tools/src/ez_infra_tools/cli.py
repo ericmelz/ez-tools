@@ -99,7 +99,7 @@ metadata:
   name: notes-data-pvc
   namespace: {namespace}
 spec:
-  storageClassName: nfs
+  storageClassName: notes-data-nfs
   accessModes:
     - ReadWriteMany
   resources:
@@ -123,6 +123,9 @@ spec:
     image: ubuntu:24.04
     command: ["/bin/bash", "-c", "--"]
     args: ["while true; do sleep 30; done;"]
+    volumeMounts:
+    - name: notes-data
+      mountPath: /notes_data
   volumes:
     - name: notes-data
       persistentVolumeClaim:
