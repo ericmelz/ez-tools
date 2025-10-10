@@ -6,6 +6,7 @@ import click
 
 from ez_infra_tools import __version__
 from ez_infra_tools.secrets import sops_age
+from ez_infra_tools.k8s import deploy as k8s_deploy
 
 
 @click.group()
@@ -35,17 +36,19 @@ def secrets():
 
 @secrets.command(name="setup")
 @click.option("--project", help="Project subdirectory (creates if doesn't exist)")
-def secrets_setup(project):
+@click.option("--environment", help="Environment name (e.g., dev, prod)")
+def secrets_setup(project, environment):
     """Set up secrets management (generate age key, create config)."""
-    if not sops_age.setup_secrets(project=project):
+    if not sops_age.setup_secrets(project=project, environment=environment):
         sys.exit(1)
 
 
 @secrets.command(name="edit")
 @click.option("--project", help="Project subdirectory")
-def secrets_edit(project):
+@click.option("--environment", help="Environment name (e.g., dev, prod)")
+def secrets_edit(project, environment):
     """Edit encrypted secrets file."""
-    if not sops_age.edit_secrets(project=project):
+    if not sops_age.edit_secrets(project=project, environment=environment):
         sys.exit(1)
 
 
@@ -53,9 +56,10 @@ def secrets_edit(project):
 @click.option("--format", type=click.Choice(["env", "yaml", "json"]), default="env", help="Output format")
 @click.option("--key", help="Extract specific key only")
 @click.option("--project", help="Project subdirectory")
-def secrets_decrypt(format, key, project):
+@click.option("--environment", help="Environment name (e.g., dev, prod)")
+def secrets_decrypt(format, key, project, environment):
     """Decrypt and display secrets."""
-    if not sops_age.decrypt_secrets(output_format=format, key=key, project=project):
+    if not sops_age.decrypt_secrets(output_format=format, key=key, project=project, environment=environment):
         sys.exit(1)
 
 
@@ -68,9 +72,10 @@ def secrets_check():
 
 @secrets.command(name="make-temp-secrets-yaml")
 @click.option("--project", help="Project subdirectory")
-def secrets_make_temp_yaml(project):
+@click.option("--environment", help="Environment name (e.g., dev, prod)")
+def secrets_make_temp_yaml(project, environment):
     """Decrypt secrets and write to temporary YAML file with 'secrets:' wrapper."""
-    if not sops_age.make_temp_secrets_yaml(project=project):
+    if not sops_age.make_temp_secrets_yaml(project=project, environment=environment):
         sys.exit(1)
 
 
@@ -78,6 +83,26 @@ def secrets_make_temp_yaml(project):
 def k8s():
     """Manage Kubernetes contexts."""
     pass
+
+
+@k8s.command(name="deploy")
+@click.option("--project", required=True, help="Project name")
+@click.option("--environment", help="Environment name (e.g., dev, prod)")
+@click.option("--namespace", help="Kubernetes namespace (default: current context namespace)")
+def k8s_deploy_chart(project, environment, namespace):
+    """Deploy Helm chart with project and environment values."""
+    if not k8s_deploy.deploy_helm_chart(project=project, environment=environment, namespace=namespace):
+        sys.exit(1)
+
+
+@k8s.command(name="undeploy")
+@click.option("--project", required=True, help="Project name")
+@click.option("--environment", help="Environment name (e.g., dev, prod)")
+@click.option("--namespace", help="Kubernetes namespace (default: current context namespace)")
+def k8s_undeploy_chart(project, environment, namespace):
+    """Undeploy (uninstall) Helm release."""
+    if not k8s_deploy.undeploy_helm_chart(project=project, environment=environment, namespace=namespace):
+        sys.exit(1)
 
 
 @k8s.command(name="create-test-pod")

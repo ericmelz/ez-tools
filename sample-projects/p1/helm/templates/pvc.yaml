@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: notes-data-pvc-p1
+  namespace: {{ .Values.namespace }}
+spec:
+  storageClassName: ""   # empty to match the static PV
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: p1
+description: Test project p1
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
